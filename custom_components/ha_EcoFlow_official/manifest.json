@@ -1,5 +1,5 @@
 {
-  "domain": "ecoflow_modbus",
+  "domain": "ha_ecoflow_official",
   "name": "ha EcoFlow official",
   "codeowners": [
     "@arrow-lu"

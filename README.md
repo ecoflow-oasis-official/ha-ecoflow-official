@@ -48,7 +48,7 @@ sensors in the native Energy dashboard; live power and system SOC are also avail
 
 ### Manual
 
-Copy the `custom_components/ha_EcoFlow_official` directory into your Home Assistant `config/custom_components/` folder and restart.
+Copy the `custom_components/ha_ecoflow_official` directory into your Home Assistant `config/custom_components/` folder and restart.
 
 ## Configuration
 
@@ -73,7 +73,7 @@ Manual setup reads the device SN to select the model and its supported points:
 ### YAML (Advanced)
 
 ```yaml
-ecoflow_modbus:
+ha_ecoflow_official:
   - host: 192.168.1.10
     port: 502               # optional, default 502
     unit_id: 1              # optional, default 1
@@ -113,7 +113,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution gu
 
 This project is licensed under the [MIT License](LICENSE).
 
-The vendored [pymodbus](https://github.com/pymodbus-dev/pymodbus) library is licensed under the [BSD-3-Clause License](custom_components/ha_EcoFlow_official/vendor/LICENSE).
+The vendored [pymodbus](https://github.com/pymodbus-dev/pymodbus) library is licensed under the [BSD-3-Clause License](custom_components/ha_ecoflow_official/vendor/LICENSE).
 
 ---
 

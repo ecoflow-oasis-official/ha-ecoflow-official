@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const source = readFileSync(new URL(
-  "../custom_components/ecoflow_modbus/frontend/compact-controls.js", import.meta.url
+  "../custom_components/ha_ecoflow_official/frontend/compact-controls.js", import.meta.url
 ), "utf8");
 class Root {
   constructor(host) { this.host = host; this.styles = new Map(); this.children = []; }
@@ -49,7 +49,7 @@ vm.runInContext(source, context);
 await Promise.resolve();
 assert.equal(Row.prototype.updated, wrapped); // One wrapper even on duplicate load.
 
-function row(platform = "ecoflow_modbus", inDevicePage = true) {
+function row(platform = "ha_ecoflow_official", inDevicePage = true) {
   const item = new Row();
   item.calls = [];
   item.localName = "hui-number-entity-row";
@@ -79,7 +79,7 @@ assert.deepEqual(eco.item.calls, [["changed"]]);
 await update(eco.item);
 assert.equal(eco.item.shadowRoot.styles.size, 1); // No per-update accumulation.
 
-for (const sample of [row("other_integration"), row("ecoflow_modbus", false), row(undefined, false)]) {
+for (const sample of [row("other_integration"), row("ha_ecoflow_official", false), row(undefined, false)]) {
   await update(sample.item);
   assert.equal(sample.item.shadowRoot.styles.size, 0);
   assert.equal(sample.generic.shadowRoot.styles.size, 0);
@@ -107,13 +107,13 @@ await new Promise(setImmediate);
 assert.equal(rendered.item.shadowRoot.styles.size, 1, "Card renders style child rows");
 const compactRegistry = row();
 delete compactRegistry.card.entities[0].platform;
-compactRegistry.card.hass = { entities: { "number.renamed_custom_id": { platform: "ecoflow_modbus" } } };
+compactRegistry.card.hass = { entities: { "number.renamed_custom_id": { platform: "ha_ecoflow_official" } } };
 await update(compactRegistry.item);
 assert.equal(compactRegistry.item.shadowRoot.styles.size, 1);
 const fallback = row();
 delete fallback.card.entities[0].platform;
 fallback.card.parentNode = new Root({ localName: "ha-config-device-page", deviceId: "eco", hass: {
-  devices: { eco: { identifiers: [["ecoflow_modbus", "device-id"]] } }
+  devices: { eco: { identifiers: [["ha_ecoflow_official", "device-id"]] } }
 } });
 await update(fallback.item);
 assert.equal(fallback.item.shadowRoot.styles.size, 1);

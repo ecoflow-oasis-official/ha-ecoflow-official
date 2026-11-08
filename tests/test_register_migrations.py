@@ -38,7 +38,7 @@ class RegisterMigrationTests(unittest.TestCase):
         node = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
                     and n.name == "_migrate_error_code_entity")
         namespace = {"er": SimpleNamespace(async_get=lambda hass: registry),
-                     "DOMAIN": "ecoflow_modbus"}
+                     "DOMAIN": "ha_ecoflow_official"}
         exec(compile(ast.Module(body=[node], type_ignores=[]), "__init__.py", "exec"), namespace)
         return namespace["_migrate_error_code_entity"], registry
 

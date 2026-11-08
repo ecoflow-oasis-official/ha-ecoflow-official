@@ -3,7 +3,7 @@
 Setup paths:
 - mDNS  auto-discovery: the simulator advertises _ecoflow._tcp.local.
 - UI   manual: Settings -> Devices & Services -> Add Integration.
-- YAML import: ecoflow_modbus: - host: ... entries become config entries.
+- YAML import: ha_ecoflow_official: - host: ... entries become config entries.
 """
 
 import logging

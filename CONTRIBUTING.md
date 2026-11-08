@@ -11,7 +11,7 @@ Thank you for your interest in contributing! This guide will help you get starte
 ## Development Setup
 
 1. Fork and clone the repository
-2. Copy `custom_components/ecoflow_modbus` into your HA dev config
+2. Copy `custom_components/ha_ecoflow_official` into your HA dev config
 3. Start the [Modbus Simulator](https://github.com/EcoFlow/modbus-API) for testing:
    ```bash
    python server.py --modbus-port 502 --web-port 8089 --product "STREAM 5000"
@@ -21,7 +21,7 @@ Thank you for your interest in contributing! This guide will help you get starte
 ## Project Structure
 
 ```
-custom_components/ecoflow_modbus/
+custom_components/ha_ecoflow_official/
 ├── __init__.py           # Integration setup, YAML import
 ├── config_flow.py        # UI config flow, mDNS discovery
 ├── coordinator.py        # Data update coordinator

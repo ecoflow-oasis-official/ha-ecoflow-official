@@ -1,6 +1,6 @@
 """Constants for the EcoFlow Modbus integration."""
 
-DOMAIN = "ecoflow_modbus"
+DOMAIN = "ha_ecoflow_official"
 PLATFORMS = ["sensor", "number", "select", "switch", "button"]
 
 CONF_UNIT_ID = "unit_id"

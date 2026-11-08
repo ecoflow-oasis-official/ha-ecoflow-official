@@ -17,7 +17,7 @@ from time import monotonic
 from unittest.mock import AsyncMock, Mock
 
 
-COMPONENT = Path(__file__).resolve().parents[1] / "custom_components/ecoflow_modbus"
+COMPONENT = Path(__file__).resolve().parents[1] / "custom_components/ha_ecoflow_official"
 
 
 class AbortFlow(Exception):

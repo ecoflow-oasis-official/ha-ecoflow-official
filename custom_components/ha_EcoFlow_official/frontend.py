@@ -8,7 +8,7 @@ from homeassistant.components.http import StaticPathConfig
 
 from .const import DOMAIN
 
-_MODULE_URL = "/ecoflow_modbus/compact-controls-v2.js"
+_MODULE_URL = "/ha_ecoflow_official/compact-controls-v2.js"
 _REGISTERED = f"{DOMAIN}_frontend_registered"
 _WAITING = f"{DOMAIN}_frontend_waiting"
 

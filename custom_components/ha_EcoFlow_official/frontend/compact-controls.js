@@ -2,9 +2,9 @@
  * Keep native service handling; process existing rows as well as later renders.
  */
 (() => {
-  const DOMAIN = "ecoflow_modbus";
+  const DOMAIN = "ha_ecoflow_official";
   const STYLE_ID = "ecoflow-compact-number";
-  const PATCHED = Symbol.for("ecoflow_modbus.compactNumbers.v2");
+  const PATCHED = Symbol.for("ha_ecoflow_official.compactNumbers.v2");
   if (window[PATCHED]) return;
   window[PATCHED] = true;
   const INPUT_CSS = `

@@ -45,7 +45,7 @@ class FrontendTests(unittest.IsolatedAsyncioTestCase):
         await callback(self.hass, "frontend")
         self.hass.http.async_register_static_paths.assert_awaited_once()
         self.ns["add_extra_js_url"].assert_called_once_with(
-            self.hass, "/ecoflow_modbus/compact-controls-v2.js")
+            self.hass, "/ha_ecoflow_official/compact-controls-v2.js")
 
     async def test_failed_registration_does_not_mark_module_loaded(self):
         self.hass.http.async_register_static_paths.side_effect = OSError("failed")
