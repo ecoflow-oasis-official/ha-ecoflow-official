@@ -64,6 +64,8 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
         self._product_reload_scheduled = False
 
         self._data_cache: dict[int, object] = {}
+        self._stream_role = None
+        self._stream_system_values = {}
         self._cursor = 0
         self._heartbeat_task: asyncio.Task | None = None
         self._connection_task: asyncio.Task | None = None
@@ -97,6 +99,9 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
     def _configure_registers(self) -> None:
         """Rebuild the polling groups for the identified product."""
         self.registers = filter_registers(self.product)
+        self._poll_registers = list(self.registers)
+        self._system_offsets = {r["offset"] for r in self.registers
+                                if r.get("region", "").startswith("S")}
         partitions = [[] for _ in range(self._partition_count)]
         for index, reg in enumerate(self.registers):
             partitions[index % self._partition_count].append(reg)
@@ -179,6 +184,8 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
             return min(1, remaining)
         if not self._reconnecting:
             self._reconnecting = True
+            self._stream_system_values.clear()
+            self._stream_role = None
             LOGGER.warning("No Modbus response from %s for %ss; reconnecting",
                            self.host, self._response_timeout)
             self.async_set_update_error(UpdateFailed("Device response timeout"))
@@ -265,6 +272,7 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("Device response timeout")
         if self._reconnecting:
             raise UpdateFailed("Reconnecting to device")
+        self._update_stream_system_values(result)
         for offset, value in result.items():
             if value is not None:
                 self._data_cache[offset] = value
@@ -281,18 +289,30 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
                 LOGGER.debug("device display refresh failed", exc_info=True)
         return dict(self._data_cache)
 
+    def _update_stream_system_values(self, result):
+        """Only publish readings collected during the current master tenure."""
+        role = result.get(0x1001)
+        if type(role) is int and role in (0, 1) and role != self._stream_role:
+            self._stream_role = role
+            self._stream_system_values.clear()
+        if self._stream_role == 1:
+            for offset, value in result.items():
+                if offset in self._system_offsets and value is not None:
+                    self._stream_system_values[offset] = value
+
     async def async_write(self, offset, dtype, value, length=8):
         if self._reconnecting:
             raise UpdateFailed("Reconnecting to device")
         await self.link.write_value(offset, dtype, value, length)
         # Reflect the new value right away instead of waiting for the
         # partition this register belongs to.
-        reg = next((r for r in self.registers if r["offset"] == offset), None)
+        reg = next((r for r in self._poll_registers if r["offset"] == offset), None)
         if reg is not None:
             new_value = await self.link.read_one(reg)
             if new_value is not None:
                 self._last_response = monotonic()
                 self._data_cache[offset] = new_value
+                self._update_stream_system_values({offset: new_value})
                 self.data = dict(self._data_cache)
                 self.async_update_listeners()
 

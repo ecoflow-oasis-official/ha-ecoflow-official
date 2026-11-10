@@ -16,19 +16,6 @@ Home Assistant custom integration that connects to EcoFlow inverters via **Modbu
 - **Zero dependencies** — pymodbus is vendored; installs offline with no pip requirements
 - **Shared Modbus connection** — on HA 2026.9+, reuses the built-in Modbus integration's connection so multiple integrations can share a single TCP link
 
-## Home Assistant Energy dashboard
-
-Reviewed read-only telemetry (power, voltage, current, temperature, frequency,
-SOC/SOH, current counts, battery capacity and available battery power) provides
-measurement statistics. Directional daily/lifetime energy counters use
-`total_increasing`; battery capacity uses `energy_storage` with `measurement`.
-Rated specifications, configuration limits, codes, identifiers, enum states,
-timestamps and daily aggregates with unspecified net/throughput semantics keep
-ordinary history. Writable controls retain their existing entities; no extra
-readback sensors are created.
-Select grid import/export, solar production and battery charge/discharge energy
-sensors in the native Energy dashboard; live power and system SOC are also available.
-
 ## Supported Devices
 
 | Device | Registers | Status |
@@ -63,12 +50,8 @@ model (for example, `STREAM AC 5000`) and `serial` for the device SN.
 
 **Settings** → **Devices & Services** → **Add Integration** → search **ha EcoFlow official** → enter IP and port. Connectivity is verified on submit.
 
-Manual setup reads the device SN to select the model and its supported points:
-
-| SN prefix | Product |
-|-----------|---------|
-| `ES21` | STREAM 5000 |
-| `ES22` | STREAM AC 5000 |
+STREAM devices expose their D-class points on individual devices. S-class points
+belong to a separate **EcoFLow STREAM System** device.
 
 ### YAML (Advanced)
 
@@ -86,11 +69,8 @@ ha_ecoflow_official:
 |----------|-----------|----------|
 | Sensor | Read-only registers | System SOC, Grid power, PV voltage, Fault codes |
 | Number | Writable numeric registers | Backup reserve ratio, Power limits, Setpoints |
-| Select | Enumerated control registers | Operation mode, Feed-in mode, Control point |
+| Select | Enumerated control registers | Control point |
 | Switch | Boolean control registers | Bypass AC1/2/3, Force off-grid |
-| Button | One-shot write registers | Heartbeat signal |
-
-All entities are grouped under a single device per Modbus connection: **ha EcoFlow official (IP)**.
 
 ## Language Support
 
@@ -104,6 +84,38 @@ The integration adapts to your Home Assistant language setting. Unsupported lang
 | Italiano | ✅ |
 | Nederlands | ✅ |
 | Polski | ✅ |
+
+## FAQ
+
+### 1. How do Home Assistant and the EcoFlow App work together to control devices?
+
+When no control point is set in Home Assistant, devices are controlled by EcoFlow's
+local Energy Management System (EMS). Limits set in Home Assistant work together
+with EcoFlow App controls. Combining these controls can enable scheduling behavior
+that the App alone does not provide.
+
+Regulation-related features, such as power unlocking and permission to export to
+the grid, can only be configured in the EcoFlow App. All Home Assistant control
+operates within the system's safety constraints.
+
+### 2. How are multiple devices controlled?
+
+If multiple devices support operating together as a system, Home Assistant controls
+the system, which then controls each individual device within it. To control each
+device independently, configure each device as a separate system in the EcoFlow App.
+
+### 3. Why can't Home Assistant discover my device?
+
+Confirm that the device firmware has been upgraded to a supported version and
+that the **Modbus TCP** switch is enabled in the EcoFlow App. This switch is
+**disabled by default**.
+
+### 4. Why do the energy statistics differ from those shown in the EcoFlow App?
+
+The EcoFlow App accumulates energy statistics from the time the devices form a
+system. The cumulative energy counters read by Home Assistant are a feature
+newly supported after a firmware update. Their statistics therefore have
+different starting times.
 
 ## Contributing
 

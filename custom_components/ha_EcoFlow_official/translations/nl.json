@@ -21,7 +21,8 @@
       "cannot_connect": "Kan geen verbinding maken. Controleer IP/poort en of het apparaat actief is"
     },
     "abort": {
-      "already_configured": "Dit apparaat is al geconfigureerd"
+      "already_configured": "Dit apparaat is al geconfigureerd",
+      "temporary_system_id": "Tijdelijke modus: zodra een apparaat als master is bevestigd, wordt intern een systeem-ID toegewezen. Handmatige configuratie en Group ID-ondersteuning in de firmware zijn niet nodig."
     }
   },
   "entity": {
@@ -586,10 +587,10 @@
         "name": "S3. Batterij ontlaadvermogenlimiet"
       },
       "reg_1604": {
-        "name": "S3. Net importvermogenlimiet"
+        "name": "S3. Ingangsvermogenslimiet bij het meterpunt"
       },
       "reg_1606": {
-        "name": "S3. Net exportvermogenlimiet"
+        "name": "S3. Uitgangsvermogenslimiet bij het meterpunt"
       },
       "reg_1608": {
         "name": "S3. Omvormer uitgangsvermogenlimiet"
@@ -670,7 +671,7 @@
           "1": "Batterijpunt",
           "2": "Meterpunt",
           "3": "Omvormerpunt",
-          "4": "Netpunt"
+          "4": "Punt van de netaansluiting"
         }
       }
     },

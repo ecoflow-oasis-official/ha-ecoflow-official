@@ -14,7 +14,7 @@
   ],
   "documentation": "https://github.com/EcoFlow/modbus-API",
   "iot_class": "local_polling",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "zeroconf": [
     "_ecoflow._tcp.local."
   ]

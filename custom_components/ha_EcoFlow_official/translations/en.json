@@ -21,7 +21,8 @@
       "cannot_connect": "Cannot connect. Check IP/port and that the device is running"
     },
     "abort": {
-      "already_configured": "This device is already configured"
+      "already_configured": "This device is already configured",
+      "temporary_system_id": "Temporary mode: a system ID is assigned internally when a device is confirmed as master. Manual configuration and firmware Group ID support are not required."
     }
   },
   "entity": {
@@ -586,10 +587,10 @@
         "name": "S3. Battery discharge power limit"
       },
       "reg_1604": {
-        "name": "S3. Grid import power limit"
+        "name": "S3. Meter point input power limit"
       },
       "reg_1606": {
-        "name": "S3. Grid export power limit"
+        "name": "S3. Meter point output power limit"
       },
       "reg_1608": {
         "name": "S3. Inverter output power limit"
@@ -670,7 +671,7 @@
           "1": "Battery point",
           "2": "Meter point",
           "3": "Inverter point",
-          "4": "Grid point"
+          "4": "Grid port point"
         }
       }
     },

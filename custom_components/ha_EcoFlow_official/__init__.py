@@ -21,15 +21,22 @@ from .const import (
     CONF_ADDRESS_OFFSET,
     CONF_PRODUCT,
     CONF_SCAN_INTERVAL,
+    CONF_SYSTEM_ID,
     CONF_UNIT_ID,
     DEFAULT_ADDRESS_OFFSET,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SYSTEM_ID,
     DEFAULT_UNIT_ID,
     DOMAIN,
     PLATFORMS,
+    SYSTEM_ENTRY,
 )
 from .coordinator import EcoFlowModbusCoordinator
+from .visibility import async_prepare_system_registers
+from .system import (
+    STREAM_PRODUCTS, async_setup_system_entry, async_bind_temporary_system,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +51,7 @@ CONFIG_SCHEMA = vol.Schema(
                         vol.Optional(CONF_PORT, default=DEFAULT_PORT): cv.port,
                         vol.Optional(CONF_UNIT_ID, default=DEFAULT_UNIT_ID): cv.positive_int,
                         vol.Optional(CONF_PRODUCT): cv.string,
+                        vol.Optional(CONF_SYSTEM_ID, default=DEFAULT_SYSTEM_ID): cv.string,
                         vol.Optional(
                             CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
                         ): cv.positive_int,
@@ -91,6 +99,8 @@ def _migrate_error_code_entity(hass, entry) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
+    if entry.data.get(SYSTEM_ENTRY):
+        return await async_setup_system_entry(hass, entry)
     # Normalize the entry title for entries created by older versions.
     expected_title = "ha EcoFlow official (" + str(entry.data[CONF_HOST]) + ")"
     if entry.title != expected_title:
@@ -100,6 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     )
     try:
         await coordinator.async_config_entry_first_refresh()
+        await async_prepare_system_registers(hass, coordinator)
     except Exception as exc:  # noqa: BLE001
         await coordinator.async_close()
         raise ConfigEntryNotReady(
@@ -108,6 +119,13 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     _migrate_error_code_entity(hass, entry)
+    system = None
+    if coordinator.product in STREAM_PRODUCTS:
+        system = async_bind_temporary_system(hass, coordinator)
+        # Keep watching unassigned slaves without guessing which system they
+        # belong to. On promotion they get their own persistent system.
+        entry.async_on_unload(coordinator.async_add_listener(
+            lambda: async_bind_temporary_system(hass, coordinator)))
     # Built-in keep-alive: write the heartbeat register every 20s.
     await coordinator.async_start_connection_monitor()
     await coordinator.async_start_heartbeat()
@@ -122,6 +140,11 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
         f"{entry.entry_id}-{reg['offset']:04X}"
         for reg in coordinator.registers
     }
+    if system is not None:
+        # Leave legacy S entries for migration if the virtual entry is still
+        # being set up. Removing them now would discard entity IDs/history.
+        expected.update(f"{entry.entry_id}-{reg['offset']:04X}"
+                        for reg in system.registers)
     ent_reg = er.async_get(hass)
     for entity in list(ent_reg.entities.values()):
         if (
@@ -133,8 +156,20 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry) -> bool:
+    if entry.data.get(SYSTEM_ENTRY):
+        coordinator = hass.data[DOMAIN][entry.entry_id]
+        if coordinator._entry_platforms_loaded and not await hass.config_entries.async_unload_platforms(
+            entry, PLATFORMS
+        ):
+            return False
+        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator.entry = None
+        coordinator._entry_platforms_loaded = False
+        return True
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+    if system := getattr(coordinator, "_stream_system", None):
+        system.async_detach(coordinator.key)
     await coordinator.async_close()
     return True

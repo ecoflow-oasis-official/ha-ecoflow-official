@@ -11,12 +11,16 @@ from .const import (
     CONF_ADDRESS_OFFSET,
     CONF_PRODUCT,
     CONF_SCAN_INTERVAL,
+    CONF_SYSTEM_ID,
     CONF_UNIT_ID,
     DEFAULT_ADDRESS_OFFSET,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SYSTEM_ID,
     DEFAULT_UNIT_ID,
     DOMAIN,
+    SYSTEM_ENTRY,
+    SYSTEM_NAME,
 )
 from .link import probe_device
 from .product_profiles import product_from_serial
@@ -39,6 +43,7 @@ def _defaults(extra=None):
         CONF_UNIT_ID: DEFAULT_UNIT_ID,
         CONF_ADDRESS_OFFSET: DEFAULT_ADDRESS_OFFSET,
         CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
+        CONF_SYSTEM_ID: DEFAULT_SYSTEM_ID,
     }
     if extra:
         data.update(extra)
@@ -49,6 +54,21 @@ class EcoFlowModbusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle the configured flow for one EcoFlow Modbus device."""
 
     VERSION = 1
+
+    async def async_step_integration_discovery(self, discovery_info):
+        """Create one persistent system entry for a configured STREAM group."""
+        group = str(discovery_info.get(CONF_SYSTEM_ID) or DEFAULT_SYSTEM_ID).strip()
+        group = group or DEFAULT_SYSTEM_ID
+        await self.async_set_unique_id(f"stream-system:{group}")
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title=SYSTEM_NAME,
+            data={SYSTEM_ENTRY: True, CONF_SYSTEM_ID: group},
+        )
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Temporary system IDs are allocated internally, not written to firmware."""
+        return self.async_abort(reason="temporary_system_id")
 
     async def _async_check_device(self, data, *, discovery=False):
         """Match stored identity and endpoint across all setup sources."""

@@ -954,7 +954,7 @@ REGISTERS = [
     },
     {
         "offset": 0x1604,
-        "name": "Grid import power limit",
+        "name": "Meter point input power limit",
         "dtype": "UINT32",
         "unit": "W",
         "permission": "RW",
@@ -964,7 +964,7 @@ REGISTERS = [
     },
     {
         "offset": 0x1606,
-        "name": "Grid export power limit",
+        "name": "Meter point output power limit",
         "dtype": "UINT32",
         "unit": "W",
         "permission": "RW",

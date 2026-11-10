@@ -21,7 +21,8 @@
       "cannot_connect": "Connexion impossible. Vérifiez l'adresse IP/port et que l'appareil est en marche"
     },
     "abort": {
-      "already_configured": "Cet appareil est déjà configuré"
+      "already_configured": "Cet appareil est déjà configuré",
+      "temporary_system_id": "Mode temporaire : un ID système est attribué en interne lorsque le rôle maître est confirmé. Aucune configuration manuelle ni prise en charge du Group ID par le micrologiciel n’est nécessaire."
     }
   },
   "entity": {
@@ -586,10 +587,10 @@
         "name": "S3. Limite de puissance de décharge batterie"
       },
       "reg_1604": {
-        "name": "S3. Limite de puissance d'importation réseau"
+        "name": "S3. Limite de puissance d’entrée au point compteur"
       },
       "reg_1606": {
-        "name": "S3. Limite de puissance d'exportation réseau"
+        "name": "S3. Limite de puissance de sortie au point compteur"
       },
       "reg_1608": {
         "name": "S3. Limite de puissance de sortie onduleur"
@@ -670,7 +671,7 @@
           "1": "Point batterie",
           "2": "Point compteur",
           "3": "Point onduleur",
-          "4": "Point réseau"
+          "4": "Point du port réseau"
         }
       }
     },

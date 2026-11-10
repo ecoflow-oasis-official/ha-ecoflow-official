@@ -193,6 +193,9 @@ class IdentityTests(unittest.IsolatedAsyncioTestCase):
         coordinator._last_response = monotonic()
         coordinator._response_timeout = 15
         coordinator._data_cache = {}
+        coordinator._stream_role = None
+        coordinator._stream_system_values = {}
+        coordinator._system_offsets = set()
         coordinator.serial = None
         coordinator._serial_loaded = False
         coordinator._display_version = None

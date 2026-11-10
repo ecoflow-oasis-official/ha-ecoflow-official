@@ -21,7 +21,8 @@
       "cannot_connect": "Verbindung nicht möglich. Prüfen Sie IP/Port und ob das Gerät läuft"
     },
     "abort": {
-      "already_configured": "Dieses Gerät ist bereits konfiguriert"
+      "already_configured": "Dieses Gerät ist bereits konfiguriert",
+      "temporary_system_id": "Übergangsmodus: Sobald ein Gerät als Hauptgerät bestätigt ist, wird intern eine System-ID vergeben. Eine manuelle Konfiguration oder Group-ID-Unterstützung der Firmware ist nicht erforderlich."
     }
   },
   "entity": {
@@ -586,10 +587,10 @@
         "name": "S3. Batterie Entladeleistungsgrenze"
       },
       "reg_1604": {
-        "name": "S3. Netzbezug Leistungsgrenze"
+        "name": "S3. Eingangsleistungsgrenze am Zählerpunkt"
       },
       "reg_1606": {
-        "name": "S3. Netzeinspeisung Leistungsgrenze"
+        "name": "S3. Ausgangsleistungsgrenze am Zählerpunkt"
       },
       "reg_1608": {
         "name": "S3. Wechselrichter Ausgangsleistungsgrenze"
@@ -670,7 +671,7 @@
           "1": "Batteriepunkt",
           "2": "Zählerpunkt",
           "3": "Wechselrichterpunkt",
-          "4": "Netzpunkt"
+          "4": "Punkt am Netzanschluss"
         }
       }
     },

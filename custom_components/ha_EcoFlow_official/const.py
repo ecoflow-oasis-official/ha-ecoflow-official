@@ -1,6 +1,10 @@
 """Constants for the EcoFlow Modbus integration."""
 
 DOMAIN = "ha_ecoflow_official"
+CONF_SYSTEM_ID = "system_id"
+DEFAULT_SYSTEM_ID = "default"
+SYSTEM_ENTRY = "stream_system"
+SYSTEM_NAME = "EcoFLow STREAM System"
 PLATFORMS = ["sensor", "number", "select", "switch", "button"]
 
 CONF_UNIT_ID = "unit_id"
@@ -52,5 +56,5 @@ SELECTS = {
     0x0275: {0: "Self-use", 1: "System power", 2: "Inverter power",
              3: "Battery power"},
     0x1610: {0: "None", 1: "Battery point", 2: "Meter point",
-             3: "Inverter point", 4: "Grid point"},
+             3: "Inverter point", 4: "Grid port point"},
 }

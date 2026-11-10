@@ -21,7 +21,8 @@
       "cannot_connect": "Nie można połączyć. Sprawdź adres IP/port i czy urządzenie jest włączone"
     },
     "abort": {
-      "already_configured": "To urządzenie jest już skonfigurowane"
+      "already_configured": "To urządzenie jest już skonfigurowane",
+      "temporary_system_id": "Tryb tymczasowy: identyfikator systemu jest przypisywany wewnętrznie po potwierdzeniu urządzenia głównego. Konfiguracja ręczna i obsługa Group ID w oprogramowaniu urządzenia nie są wymagane."
     }
   },
   "entity": {
@@ -586,10 +587,10 @@
         "name": "S3. Limit mocy rozładowania baterii"
       },
       "reg_1604": {
-        "name": "S3. Limit mocy poboru z sieci"
+        "name": "S3. Limit mocy wejściowej w punkcie licznika"
       },
       "reg_1606": {
-        "name": "S3. Limit mocy oddawania do sieci"
+        "name": "S3. Limit mocy wyjściowej w punkcie licznika"
       },
       "reg_1608": {
         "name": "S3. Limit mocy wyjściowej falownika"
@@ -670,7 +671,7 @@
           "1": "Punkt baterii",
           "2": "Punkt licznika",
           "3": "Punkt falownika",
-          "4": "Punkt sieci"
+          "4": "Punkt portu sieci"
         }
       }
     },

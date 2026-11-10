@@ -21,7 +21,8 @@
       "cannot_connect": "Impossibile connettersi. Verifica IP/porta e che il dispositivo sia in funzione"
     },
     "abort": {
-      "already_configured": "Questo dispositivo e gia configurato"
+      "already_configured": "Questo dispositivo e gia configurato",
+      "temporary_system_id": "Modalità temporanea: un ID di sistema viene assegnato internamente quando il dispositivo è confermato come master. Non sono richieste configurazione manuale o supporto Group ID nel firmware."
     }
   },
   "entity": {
@@ -586,10 +587,10 @@
         "name": "S3. Limite potenza di scarica batteria"
       },
       "reg_1604": {
-        "name": "S3. Limite potenza importazione rete"
+        "name": "S3. Limite di potenza in ingresso al punto contatore"
       },
       "reg_1606": {
-        "name": "S3. Limite potenza esportazione rete"
+        "name": "S3. Limite di potenza in uscita al punto contatore"
       },
       "reg_1608": {
         "name": "S3. Limite potenza in uscita inverter"
@@ -670,7 +671,7 @@
           "1": "Punto batteria",
           "2": "Punto contatore",
           "3": "Punto inverter",
-          "4": "Punto rete"
+          "4": "Punto della porta di rete"
         }
       }
     },
