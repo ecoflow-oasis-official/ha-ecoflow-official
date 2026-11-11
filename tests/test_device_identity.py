@@ -345,7 +345,7 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_own_client_reads_identity_and_closes(self):
         client = Mock()
-        client.read_one.side_effect = [1, " SN1234 "]
+        client.read_one.return_value = " SN1234 "
         self.ns["ModbusClient"].return_value = client
 
         async def executor(func, *args):
@@ -355,11 +355,12 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(async_add_executor_job=executor), {"host": "192.0.2.1"}
         )
         self.assertEqual(result, (True, "SN1234"))
+        self.assertEqual([call.args[0]["offset"] for call in client.read_one.call_args_list], [0x0003])
         client.close.assert_called_once()
 
     async def test_own_client_optional_sn_failure_allows_setup(self):
         client = Mock()
-        client.read_one.side_effect = [1, TimeoutError()]
+        client.read_one.side_effect = [TimeoutError(), 0]
         self.ns["ModbusClient"].return_value = client
 
         async def executor(func, *args):
@@ -369,9 +370,10 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(async_add_executor_job=executor), {"host": "192.0.2.1"}
         )
         self.assertEqual(result, (True, None))
+        self.assertEqual([call.args[0]["offset"] for call in client.read_one.call_args_list], [0x0003, 0x0201])
         client.close.assert_called_once()
 
-    async def shared_probe(self, read):
+    async def shared_probe(self, read, conf=None):
         @asynccontextmanager
         async def temporary_unit(*args):
             yield SimpleNamespace(read_holding_registers=read)
@@ -380,13 +382,13 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
                        async_get_temporary_unit=temporary_unit,
                        ModbusTcpParams=lambda **kwargs: kwargs,
                        LOCAL_MODBUS_TIMEOUT_S=0.01)
-        return await self.ns["probe_device"](None, {"host": "192.0.2.1"})
+        return await self.ns["probe_device"](None, conf or {"host": "192.0.2.1"})
 
     async def test_shared_optional_sn_timeout_allows_setup(self):
         async def read(address, count):
             if count == 8:
                 await asyncio.Future()
-            return [1]
+            return [0, 0]
 
         self.assertEqual(await self.shared_probe(read), (True, None))
 
@@ -397,9 +399,51 @@ class ProbeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.shared_probe(read), (False, None))
 
     async def test_shared_client_reads_serial(self):
-        read = AsyncMock(side_effect=[[1], [0] * 8])
+        read = AsyncMock(return_value=[0] * 8)
         self.assertEqual(await self.shared_probe(read), (True, "SN1234"))
-        self.assertEqual(read.await_args_list[1].args, (40004, 8))
+        self.assertEqual(read.await_args_list[0].args, (40004, 8))
+        read.assert_awaited_once()
+
+    async def test_stream_never_probes_powerocean_protocol_version(self):
+        async def read(address, count):
+            if address == 40001:
+                raise RuntimeError("Modbus exception 0x02: illegal data address")
+            self.assertEqual((address, count), (40004, 8))
+            return [0] * 8
+        read_mock = AsyncMock(side_effect=read)
+        self.assertEqual(await self.shared_probe(read_mock), (True, "SN1234"))
+        read_mock.assert_awaited_once_with(40004, 8)
+
+    async def test_shared_sn_exception_falls_back_to_utc(self):
+        read = AsyncMock(side_effect=[RuntimeError("Modbus exception 0x02"), [0, 0]])
+        self.assertEqual(await self.shared_probe(read), (True, None))
+        self.assertEqual([call.args for call in read.await_args_list], [(40004, 8), (40514, 2)])
+
+    async def test_shared_short_response_is_not_a_successful_probe(self):
+        read = AsyncMock(side_effect=[[1], []])
+        self.assertEqual(await self.shared_probe(read), (False, None))
+
+    async def test_shared_respects_custom_address_offset(self):
+        read = AsyncMock(side_effect=[RuntimeError("SN unavailable"), [0, 0]])
+        self.assertEqual(await self.shared_probe(read, {"host": "192.0.2.1", "address_offset": 0}), (True, None))
+        self.assertEqual([call.args for call in read.await_args_list], [(3, 8), (513, 2)])
+
+    async def test_own_client_both_probes_fail_and_close(self):
+        client = Mock()
+        self.ns["ModbusClient"].return_value = client
+        async def executor(func, *args):
+            return func(*args)
+        for failures in ([None, None], [RuntimeError("illegal address"), TimeoutError()]):
+            client.read_one.side_effect = failures
+            self.assertEqual(await self.ns["probe_device"](
+                SimpleNamespace(async_add_executor_job=executor), {"host": "192.0.2.1"}), (False, None))
+        self.assertEqual(client.close.call_count, 2)
+
+    async def test_shared_empty_serial_still_proves_register_response(self):
+        self.ns["decode_value"] = lambda *args: "   "
+        read = AsyncMock(return_value=[0] * 8)
+        self.assertEqual(await self.shared_probe(read), (True, None))
+        read.assert_awaited_once()
 
 
 if __name__ == "__main__":

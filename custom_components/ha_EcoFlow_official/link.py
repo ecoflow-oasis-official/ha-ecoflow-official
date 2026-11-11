@@ -242,13 +242,16 @@ async def probe_device(hass, conf: dict) -> tuple[bool, str | None]:
     already held by another integration is shared rather than refused), else
     the bundled client.
     """
-    probe = {"offset": 0x0000, "dtype": "UINT16", "length": 8}
     sn_probe = {"offset": 0x0003, "dtype": "STRING", "length": 8}
-    serial = None
-    reachable = False
+    # Protocol version (0x0000) is PowerOcean-only. Both SN and UTC are
+    # supported by STREAM as well, and SN first also identifies the model.
+    utc_probe = {"offset": RECONNECT_PROBE_OFFSET, "dtype": "UINT32"}
+    probes = ((sn_probe, 8), (utc_probe, 2))
     if HAS_SHARED_CONNECTION:
         try:
-            async with asyncio.timeout(LOCAL_MODBUS_TIMEOUT_S):
+            # Bound acquisition plus two separately bounded attempts. A timed
+            # out SN request must leave time for the UTC fallback.
+            async with asyncio.timeout(LOCAL_MODBUS_TIMEOUT_S * 3):
                 async with async_get_temporary_unit(
                     hass,
                     ModbusTcpParams(
@@ -256,33 +259,34 @@ async def probe_device(hass, conf: dict) -> tuple[bool, str | None]:
                     ),
                     conf.get(CONF_UNIT_ID, DEFAULT_UNIT_ID),
                 ) as unit:
-                    await unit.read_holding_registers(
-                        conf.get(CONF_ADDRESS_OFFSET, DEFAULT_ADDRESS_OFFSET)
-                        + probe["offset"],
-                        1,
-                    )
-                    reachable = True
-                    try:
-                        words = await unit.read_holding_registers(
-                            conf.get(CONF_ADDRESS_OFFSET, DEFAULT_ADDRESS_OFFSET)
-                            + sn_probe["offset"], 8
-                        )
-                        serial = decode_value("STRING", words, 8)
-                    except Exception:  # A missing SN must not prevent setup.
-                        pass
-                    return True, (serial.strip() or None) if serial else None
+                    for probe, count in probes:
+                        try:
+                            async with asyncio.timeout(LOCAL_MODBUS_TIMEOUT_S):
+                                words = await unit.read_holding_registers(
+                                    conf.get(CONF_ADDRESS_OFFSET, DEFAULT_ADDRESS_OFFSET)
+                                    + probe["offset"], count)
+                            if len(words) != count:
+                                continue
+                            serial = (decode_value("STRING", words, 8)
+                                      if probe is sn_probe else None)
+                            return True, (serial.strip() or None) if serial else None
+                        except Exception:
+                            LOGGER.debug("Discovery read failed at offset %#06x",
+                                         probe["offset"], exc_info=True)
         except Exception:  # noqa: BLE001
-            # The optional SN read may exhaust the discovery timeout after
-            # the mandatory connection probe has already succeeded.
-            return reachable, None
+            LOGGER.debug("Shared discovery connection failed", exc_info=True)
+        return False, None
     client = ModbusClient(conf)
     try:
-        reachable = await hass.async_add_executor_job(client.read_one, probe) is not None
-        if reachable:
+        for probe, _count in probes:
             try:
-                serial = await hass.async_add_executor_job(client.read_one, sn_probe)
-            except Exception:  # A missing SN must not prevent setup.
-                pass
-        return reachable, (serial.strip() or None) if serial else None
+                value = await hass.async_add_executor_job(client.read_one, probe)
+                if value is not None:
+                    serial = value if probe is sn_probe else None
+                    return True, (serial.strip() or None) if serial else None
+            except Exception:
+                LOGGER.debug("Discovery read failed at offset %#06x",
+                             probe["offset"], exc_info=True)
+        return False, None
     finally:
         await hass.async_add_executor_job(client.close)
