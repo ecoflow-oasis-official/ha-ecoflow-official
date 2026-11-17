@@ -22,7 +22,7 @@
     },
     "abort": {
       "already_configured": "To urządzenie jest już skonfigurowane",
-      "temporary_system_id": "Tryb tymczasowy: identyfikator systemu jest przypisywany wewnętrznie po potwierdzeniu urządzenia głównego. Konfiguracja ręczna i obsługa Group ID w oprogramowaniu urządzenia nie są wymagane."
+      "system_group_read_only": "Identyfikator grupy systemu jest odczytywany automatycznie z urządzenia. Ręczne grupowanie nie jest obsługiwane."
     }
   },
   "entity": {
@@ -541,6 +541,9 @@
       },
       "reg_2407": {
         "name": "D5. Moc bypass AC3"
+      },
+      "reg_1004": {
+        "name": "D1. Identyfikator grupy systemu"
       }
     },
     "number": {
@@ -667,11 +670,11 @@
       "reg_1610": {
         "name": "S3. Punkt sterowania",
         "state": {
-          "0": "Brak",
-          "1": "Punkt baterii",
-          "2": "Punkt licznika",
-          "3": "Punkt falownika",
-          "4": "Punkt portu sieci"
+          "none": "Brak",
+          "battery_point": "Punkt baterii",
+          "meter_point": "Punkt licznika",
+          "inverter_point": "Punkt falownika",
+          "grid_port_point": "Punkt portu sieci"
         }
       }
     },

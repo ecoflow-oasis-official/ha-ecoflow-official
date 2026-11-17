@@ -22,7 +22,7 @@
     },
     "abort": {
       "already_configured": "Dit apparaat is al geconfigureerd",
-      "temporary_system_id": "Tijdelijke modus: zodra een apparaat als master is bevestigd, wordt intern een systeem-ID toegewezen. Handmatige configuratie en Group ID-ondersteuning in de firmware zijn niet nodig."
+      "system_group_read_only": "De systeemgroep-ID wordt automatisch van het apparaat gelezen. Handmatig groeperen wordt niet ondersteund."
     }
   },
   "entity": {
@@ -541,6 +541,9 @@
       },
       "reg_2407": {
         "name": "D5. Bypass AC3 vermogen"
+      },
+      "reg_1004": {
+        "name": "D1. Systeemgroep-ID"
       }
     },
     "number": {
@@ -667,11 +670,11 @@
       "reg_1610": {
         "name": "S3. Regelpunt",
         "state": {
-          "0": "Geen",
-          "1": "Batterijpunt",
-          "2": "Meterpunt",
-          "3": "Omvormerpunt",
-          "4": "Punt van de netaansluiting"
+          "none": "Geen",
+          "battery_point": "Batterijpunt",
+          "meter_point": "Meterpunt",
+          "inverter_point": "Omvormerpunt",
+          "grid_port_point": "Punt van de netaansluiting"
         }
       }
     },

@@ -35,7 +35,7 @@ from .const import (
 from .coordinator import EcoFlowModbusCoordinator
 from .visibility import async_prepare_system_registers
 from .system import (
-    STREAM_PRODUCTS, async_setup_system_entry, async_bind_temporary_system,
+    STREAM_PRODUCTS, async_setup_system_entry, async_bind_system,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -121,11 +121,10 @@ async def async_setup_entry(hass: HomeAssistant, entry) -> bool:
     _migrate_error_code_entity(hass, entry)
     system = None
     if coordinator.product in STREAM_PRODUCTS:
-        system = async_bind_temporary_system(hass, coordinator)
-        # Keep watching unassigned slaves without guessing which system they
-        # belong to. On promotion they get their own persistent system.
+        system = async_bind_system(hass, coordinator)
+        # Re-evaluate actual group membership as well as master election.
         entry.async_on_unload(coordinator.async_add_listener(
-            lambda: async_bind_temporary_system(hass, coordinator)))
+            lambda: async_bind_system(hass, coordinator)))
     # Built-in keep-alive: write the heartbeat register every 20s.
     await coordinator.async_start_connection_monitor()
     await coordinator.async_start_heartbeat()

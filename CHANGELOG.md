@@ -8,12 +8,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Read the firmware System group ID at Modbus 44101 (`0xAC45`) as UINT32.
+  Group STREAM members by this ID while keeping it out of display names.
+- Reuse the existing virtual system and route data/control to the current
+  master's connection, updating the stored host/port/unit without recreating
+  upper-level entities. Migrate linked temporary systems in place, retaining
+  their entity/device identity; consolidate linked duplicate virtual entries
+  into the established system, retaining its sensors and moving missing points.
 - Prefix entity display names with protocol regions (`D1.`, `S1.`, etc.)
   in English, German, French, Italian, Dutch and Polish.
 - Editable product profile table with multiple SN prefixes per model and
   longest-prefix matching for future model extensions.
 
+### Changed
+- Name virtual systems `EcoFLow STREAM System`, `EcoFLow STREAM System (2)`,
+  and so on, using a saved display number independent of the firmware group ID.
+  Migrate default entity ID prefixes to `ecoflow_stream_system_` and
+  `ecoflow_stream_system_2_`; preserve custom IDs and internal unique IDs.
+  References to migrated entity IDs in automations and dashboards need review.
+- Batch adjacent readable registers into FC03 requests of at most 125 words,
+  without crossing address gaps or reading write-only points. Keep each block
+  together when spreading polling across the configured scan interval.
+- Reduce a complete STREAM 5000 / STREAM AC 5000 scan from 93 individual
+  requests to 28 block requests with the current register schema. Both the
+  shared HA connection and bundled client remember rejected blocks and use
+  individual reads for those blocks until the integration is reloaded.
+
 ### Fixed
+- Load entities for an existing firmware-group virtual system even when no
+  physical master is online during startup. Persist master confirmation when
+  discovering the system, avoiding an empty device if the role changes before
+  entity setup; keep entities unavailable until the master returns.
+- Set all eight STREAM power-limit controls (`0x1600`–`0x160E`, step 2) to
+  the confirmed range 0–100000 W instead of the UINT32 storage maximum.
+  Reject out-of-range, non-finite and fractional integer writes before Modbus I/O.
+- Expose Control Point options as semantic keys with translated labels, while
+  continuing to write Modbus values 0–4. Its stored HA states are now `none`,
+  `battery_point`, `meter_point`, `inverter_point` and `grid_port_point`;
+  automations referring to the old numeric states/options must use these keys.
 - Correct device error code 10 from offset `0x2020` to `0x201A` (Modbus
   address 48219) and migrate its existing sensor without changing the entity ID.
 - Give writable numbers valid numeric bounds, including negative INT16/INT32

@@ -29,7 +29,7 @@ Home Assistant custom integration that connects to EcoFlow inverters via **Modbu
 
 1. Open HACS in Home Assistant
 2. Go to **Integrations** → **⋮** menu → **Custom repositories**
-3. Add `EcoFlow/modbus-API` with category **Integration**
+3. Add `EcoFlow-oasis-official/ha-EcoFlow-official` with category **Integration**
 4. Search for **ha EcoFlow official** and install
 5. Restart Home Assistant
 

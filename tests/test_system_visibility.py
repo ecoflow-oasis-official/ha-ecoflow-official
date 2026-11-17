@@ -63,6 +63,21 @@ class SystemVisibilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.coord.registers, self.regs)
         self.coord.link.read_one.assert_not_awaited()
 
+    async def test_preflight_reads_full_uint32_group_before_binding(self):
+        self.coord.registers.append({"offset": 0x1004, "region": "D1", "dtype": "UINT32"})
+        self.coord.link.read_one.side_effect = [1, 70000]
+        await self.prepare(None, self.coord)
+        self.assertEqual(self.coord._stream_group_id, 70000)
+        self.assertEqual(self.coord.data[0x1004], 70000)
+        self.assertEqual(self.coord.link.read_one.await_args.args[0]["dtype"], "UINT32")
+
+    async def test_preflight_rejects_zero_group_instead_of_using_saved_group(self):
+        self.coord.registers.append({"offset": 0x1004, "region": "D1", "dtype": "UINT32"})
+        self.coord.entry.data["device_group_id"] = 70000
+        self.coord.link.read_one.side_effect = [1, 0]
+        await self.prepare(None, self.coord)
+        self.assertIsNone(self.coord._stream_group_id)
+
     async def test_all_five_platforms_create_only_device_points(self):
         await self.prepare(None, self.coord)
         hass = SimpleNamespace(data={self.ns["DOMAIN"]: {"entry": self.coord}})
