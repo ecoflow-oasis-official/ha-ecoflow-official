@@ -1,6 +1,6 @@
 """Polling coordinator for one EcoFlow Modbus device.
 
-Polling is partitioned round-robin: the registers are split into N groups
+Polling is partitioned round-robin: contiguous read blocks are split into N groups
 (N = scan interval in seconds, so one group is read each second) and the full
 set refreshes once per scan interval. This spreads the burst of Modbus
 requests evenly instead of one big burst every poll tick — friendly to
@@ -25,8 +25,10 @@ from .const import (
     HEARTBEAT_OFFSET,
     RECONNECT_INTERVAL_S,
     RESPONSE_TIMEOUT_MULTIPLIER,
+    SYSTEM_GROUP_OFFSET,
 )
 from .link import create_link
+from .modbus_client import build_read_blocks
 from .product_profiles import product_from_serial
 from .registers_schema import REGISTERS
 
@@ -65,6 +67,7 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
 
         self._data_cache: dict[int, object] = {}
         self._stream_role = None
+        self._stream_group_id = None
         self._stream_system_values = {}
         self._cursor = 0
         self._heartbeat_task: asyncio.Task | None = None
@@ -99,14 +102,22 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
     def _configure_registers(self) -> None:
         """Rebuild the polling groups for the identified product."""
         self.registers = filter_registers(self.product)
-        self._poll_registers = list(self.registers)
+        self._poll_registers = [r for r in self.registers if r.get("permission") != "W"]
         self._system_offsets = {r["offset"] for r in self.registers
                                 if r.get("region", "").startswith("S")}
+        blocks = build_read_blocks(self._poll_registers)
         partitions = [[] for _ in range(self._partition_count)]
-        for index, reg in enumerate(self.registers):
-            partitions[index % self._partition_count].append(reg)
+        for index, block in enumerate(blocks):
+            partitions[index % self._partition_count].extend(block)
         self._partitions = [group for group in partitions if group]
         self._cursor = 0
+        # Identification can change the number of blocks after setup too.
+        self.update_interval = timedelta(
+            seconds=self.conf.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            / len(self._partitions)
+        )
+        LOGGER.debug("Polling %s: %d readable points in %d blocks across %d partitions",
+                     self.product, len(self._poll_registers), len(blocks), len(self._partitions))
 
     def serial_number(self, data=None) -> str | None:
         """Serial from mDNS config, else from the SN register value."""
@@ -186,6 +197,7 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
             self._reconnecting = True
             self._stream_system_values.clear()
             self._stream_role = None
+            self._stream_group_id = None
             LOGGER.warning("No Modbus response from %s for %ss; reconnecting",
                            self.host, self._response_timeout)
             self.async_set_update_error(UpdateFailed("Device response timeout"))
@@ -291,11 +303,19 @@ class EcoFlowModbusCoordinator(DataUpdateCoordinator):
 
     def _update_stream_system_values(self, result):
         """Only publish readings collected during the current master tenure."""
+        group_changed = False
+        if SYSTEM_GROUP_OFFSET in result:
+            value = result[SYSTEM_GROUP_OFFSET]
+            group = value if type(value) is int and 0 < value <= 0xFFFFFFFF else None
+            if group != self._stream_group_id:
+                group_changed = True
+                self._stream_group_id = group
+                self._stream_system_values.clear()
         role = result.get(0x1001)
         if type(role) is int and role in (0, 1) and role != self._stream_role:
             self._stream_role = role
             self._stream_system_values.clear()
-        if self._stream_role == 1:
+        if self._stream_role == 1 and not group_changed:
             for offset, value in result.items():
                 if offset in self._system_offsets and value is not None:
                     self._stream_system_values[offset] = value

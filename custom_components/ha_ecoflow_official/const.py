@@ -5,6 +5,10 @@ CONF_SYSTEM_ID = "system_id"
 DEFAULT_SYSTEM_ID = "default"
 SYSTEM_ENTRY = "stream_system"
 SYSTEM_NAME = "EcoFLow STREAM System"
+SYSTEM_GROUP_OFFSET = 0x1004
+SYSTEM_ENTITY_KEY = "system_entity_key"
+DEVICE_GROUP_ID = "device_group_id"
+SYSTEM_NUMBER = "system_number"
 PLATFORMS = ["sensor", "number", "select", "switch", "button"]
 
 CONF_UNIT_ID = "unit_id"
@@ -57,4 +61,12 @@ SELECTS = {
              3: "Battery power"},
     0x1610: {0: "None", 1: "Battery point", 2: "Meter point",
              3: "Inverter point", 4: "Grid port point"},
+}
+
+# Stable HA option keys are separate from the numeric Modbus protocol values.
+SELECT_OPTION_KEYS = {
+    0x1610: {
+        0: "none", 1: "battery_point", 2: "meter_point",
+        3: "inverter_point", 4: "grid_port_point",
+    },
 }

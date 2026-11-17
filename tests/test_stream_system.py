@@ -49,7 +49,7 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
                                         async_get_entity_id=self.find_entity,
                                         async_update_entity=self.update_entity,
                                         async_remove=lambda key: self.entities.pop(key))
-        self.devices = SimpleNamespace(async_get_or_create=Mock(
+        self.devices = SimpleNamespace(async_update_device=Mock(), async_get_or_create=Mock(
             return_value=SimpleNamespace(id="stable-system-device")))
         self.hass = SimpleNamespace(data={}, config_entries=SimpleNamespace(
             async_entries=lambda domain: self.entries,
@@ -65,6 +65,7 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
         self.hass.config_entries.async_reload = AsyncMock()
         self.hass.config_entries.async_remove = AsyncMock()
         ns = load_methods("const.py", {})
+        load_methods("system_naming.py", ns)
         load_methods("registers_schema.py", ns)
         ns.update(logging=logging, DataUpdateCoordinator=FakeCoordinator,
                   config_entries=SimpleNamespace(SOURCE_INTEGRATION_DISCOVERY="integration_discovery"),
@@ -83,6 +84,11 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
 
     def update_entity(self, key, **changes):
         entity = self.entities[key]
+        if "new_entity_id" in changes:
+            new_id = changes.pop("new_entity_id")
+            self.entities.pop(key)
+            self.entities[new_id] = entity
+            entity.entity_id = new_id
         for attr, value in changes.items():
             setattr(entity, "unique_id" if attr == "new_unique_id" else attr, value)
 
@@ -306,7 +312,7 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
         flow.async_abort = Mock(return_value={"type": "abort"})
         result = await flow.async_step_reconfigure({"system_id": "second"})
         self.assertEqual(result["type"], "abort")
-        flow.async_abort.assert_called_once_with(reason="temporary_system_id")
+        flow.async_abort.assert_called_once_with(reason="system_group_read_only")
 
     async def test_restart_keeps_virtual_identity_with_a_different_master(self):
         self.member("old-master", 1, {0x020E: 80})
@@ -367,6 +373,7 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
         self.entries.append(entry)
         physical = FakeCoordinator(self.hass)
         physical.key, physical.entry, physical.product = entry.entry_id, entry, "STREAM 5000"
+        physical._stream_group_id = 1
         physical._reconnecting, physical._data_cache = False, {}
         physical.registers = [r for r in self.ns["REGISTERS"] if physical.product in r["products"]]
         physical._poll_registers = list(physical.registers)
@@ -376,7 +383,11 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
             setattr(physical, method, AsyncMock())
         old = self.old_entity(entry.entry_id, 0x020E)
         virtual = self.virtual_entry()
+        virtual.data["system_id"] = "1"
+        self.system.group = "1"
+        self.hass.data[self.ns["DOMAIN"]]["_stream_systems"] = {"1": self.system}
         self.system.entry = None  # The discovery flow below creates the entry.
+        self.system._entry_platforms_loaded = False
         seen = {}
         async def forward(config_entry, platforms):
             coord = self.hass.data[self.ns["DOMAIN"]][config_entry.entry_id]
@@ -389,6 +400,7 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
         async def discover(*args, **kwargs):
             return await self.ns["async_setup_system_entry"](self.hass, virtual)
         self.hass.config_entries.flow.async_init.side_effect = discover
+        self.hass.config_entries.async_reload.side_effect = discover
         ns = dict(self.ns)
         load_methods("visibility.py", ns)
         ns.update(HomeAssistant=object, CONF_HOST="host",
@@ -424,58 +436,64 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
     async def test_each_new_master_gets_a_different_saved_system(self):
         first = self.unassigned("master-a", 1)
         second = self.unassigned("master-b", 1)
-        a = self.ns["async_bind_temporary_system"](self.hass, first)
-        b = self.ns["async_bind_temporary_system"](self.hass, second)
+        first._stream_group_id, second._stream_group_id = 100, 200
+        a = self.ns["async_bind_system"](self.hass, first)
+        b = self.ns["async_bind_system"](self.hass, second)
         self.assertNotEqual(a.key, b.key)
         self.assertIs(a.active_master, first)
         self.assertIs(b.active_master, second)
         self.assertTrue(first.entry.data["system_id_assigned"])
-        self.assertEqual(first.entry.data["system_id"], "temporary:master-a")
-        self.assertIs(self.ns["async_bind_temporary_system"](self.hass, first), a)
+        self.assertEqual(first.entry.data["system_id"], "100")
+        self.assertIs(self.ns["async_bind_system"](self.hass, first), a)
 
     async def test_restart_reuses_assigned_group_without_allocating_another(self):
         member = self.unassigned("master", 1)
-        assigned = self.ns["async_assign_temporary_system_id"](self.hass, member)
+        member._stream_group_id = 100
+        assigned = self.ns["async_bind_system"](self.hass, member)
         member._stream_role = None  # Role still requires a fresh response.
-        self.assertEqual(self.ns["async_assign_temporary_system_id"](self.hass, member), assigned)
-        system = self.ns["async_bind_temporary_system"](self.hass, member)
+        self.assertIs(self.ns["async_bind_system"](self.hass, member), assigned)
+        system = self.ns["async_bind_system"](self.hass, member)
         self.assertIsNone(system.active_master)
 
-    async def test_unassigned_slave_creates_system_only_on_promotion(self):
+    async def test_confirmed_slave_binds_group_but_creates_entry_only_on_promotion(self):
         member = self.unassigned("slave", 0)
-        self.assertIsNone(self.ns["async_bind_temporary_system"](self.hass, member))
+        member._stream_group_id = 100
+        self.assertIsNotNone(self.ns["async_bind_system"](self.hass, member))
         self.hass.config_entries.flow.async_init.assert_not_awaited()
-        self.assertNotIn("system_id_assigned", member.entry.data)
+        self.assertEqual(member.entry.data["system_id"], "100")
         member._stream_role = 1
-        self.assertIsNotNone(self.ns["async_bind_temporary_system"](self.hass, member))
+        self.assertIsNotNone(self.ns["async_bind_system"](self.hass, member))
 
     async def test_new_master_does_not_take_established_default_system(self):
         old = self.unassigned("old-master", 1, "2026-11-01T10:00:00")
         new = self.unassigned("new-master", 1, "2026-11-10T10:00:00")
         self.virtual_entry()
+        old._stream_group_id, new._stream_group_id = 100, 200
         # Even if the new device finishes setup first, reserve old history
         # for the existing oldest physical entry.
-        self.assertEqual(self.ns["async_assign_temporary_system_id"](self.hass, new), "temporary:new-master")
-        self.assertEqual(self.ns["async_assign_temporary_system_id"](self.hass, old), "default")
+        self.assertEqual(self.ns["async_bind_system"](self.hass, new).group, "200")
+        self.assertEqual(self.ns["async_bind_system"](self.hass, old).group, "100")
 
-    async def test_existing_explicit_group_is_preserved_for_known_members(self):
+    async def test_existing_explicit_group_requires_actual_device_confirmation(self):
         member = self.unassigned("known-slave", 0)
         member.entry.data["system_id"] = "existing-system"
-        self.assertEqual(self.ns["async_assign_temporary_system_id"](self.hass, member), "existing-system")
+        self.assertIsNone(self.ns["async_bind_system"](self.hass, member))
 
     async def test_new_master_never_claims_an_orphaned_older_virtual_system(self):
         legacy = self.virtual_entry()
         legacy.created_at = "2026-11-01T10:00:00"
         new = self.unassigned("new-master", 1, "2026-11-10T10:00:00")
-        self.assertEqual(self.ns["async_assign_temporary_system_id"](self.hass, new), "temporary:new-master")
+        new._stream_group_id = 100
+        self.assertEqual(self.ns["async_bind_system"](self.hass, new).group, "100")
+        self.assertEqual(legacy.data["system_id"], "default")
 
     async def test_unknown_invalid_and_offline_roles_do_not_allocate(self):
         for role in (None, 0, True, "1", 2):
             member = self.unassigned(str(role), role)
-            self.assertIsNone(self.ns["async_assign_temporary_system_id"](self.hass, member))
+            self.assertIsNone(self.ns["async_bind_system"](self.hass, member))
         member = self.unassigned("offline", 1)
         member.last_update_success = False
-        self.assertIsNone(self.ns["async_assign_temporary_system_id"](self.hass, member))
+        self.assertIsNone(self.ns["async_bind_system"](self.hass, member))
 
     async def test_slave_setup_listener_allocates_system_on_actual_role_update(self):
         physical = self.unassigned("promoted", 0)
@@ -501,9 +519,10 @@ class StreamSystemTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(hasattr(physical, "_stream_system"))
         self.assertTrue(all(r["region"].startswith("D") for r in physical.registers))
         physical._stream_role = 1
+        physical._stream_group_id = 70000
         physical._stream_system_values = {0x020E: 61}
         physical.async_set_updated_data({0x1001: 1})
         await asyncio.gather(*self.tasks)
-        self.assertEqual(entry.data["system_id"], "temporary:promoted")
+        self.assertEqual(entry.data["system_id"], "70000")
         self.assertEqual(physical._stream_system.data, {0x020E: 61})
         self.hass.config_entries.flow.async_init.assert_awaited_once()

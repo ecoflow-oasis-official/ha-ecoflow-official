@@ -2,6 +2,8 @@
 
 import logging
 
+from .const import SYSTEM_GROUP_OFFSET
+
 LOGGER = logging.getLogger(__name__)
 MASTER_FLAG_OFFSET = 0x1001
 STREAM_PRODUCTS = {"STREAM 5000", "STREAM AC 5000"}
@@ -27,6 +29,17 @@ async def async_prepare_system_registers(hass, coordinator):
     if not _valid_role(role):
         role = None
     coordinator._stream_role = role
+    group_reg = next((r for r in coordinator.registers if r["offset"] == SYSTEM_GROUP_OFFSET), None)
+    group = getattr(coordinator, "_stream_group_id", None)
+    if group_reg is not None:
+        try:
+            group = await coordinator.link.read_one(group_reg)
+        except Exception:
+            LOGGER.debug("Could not read system group ID", exc_info=True)
+    coordinator._stream_group_id = (
+        group if type(group) is int and 0 < group <= 0xFFFFFFFF else None)
+    if coordinator._stream_group_id is not None:
+        coordinator._data_cache[SYSTEM_GROUP_OFFSET] = coordinator._stream_group_id
     coordinator._stream_system_values = {}
     if role is not None:
         coordinator._data_cache[MASTER_FLAG_OFFSET] = role

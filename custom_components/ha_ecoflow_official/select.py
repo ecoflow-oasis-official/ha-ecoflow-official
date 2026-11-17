@@ -3,7 +3,7 @@
 from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SELECTS
+from .const import DOMAIN, SELECTS, SELECT_OPTION_KEYS
 
 
 class EcoFlowSelect(CoordinatorEntity, SelectEntity):
@@ -18,18 +18,23 @@ class EcoFlowSelect(CoordinatorEntity, SelectEntity):
         self._attr_translation_key = f"reg_{reg['offset']:04x}"
         self._attr_unique_id = f"{coordinator.key}-{reg['offset']:04X}"
         self._attr_device_info = coordinator.device_info
-        self._attr_options = [str(v) for v in options]
+        keys = SELECT_OPTION_KEYS.get(reg["offset"], {})
+        self._value_to_option = {value: keys.get(value, str(value)) for value in options}
+        self._option_to_value = {key: value for value, key in self._value_to_option.items()}
+        self._attr_options = list(self._option_to_value)
 
     @property
     def current_option(self):
         if self.coordinator.data is None:
             return None
         value = self.coordinator.data.get(self._reg["offset"])
-        return str(value) if value is not None and value in self._options else None
+        return self._value_to_option.get(value)
 
     async def async_select_option(self, option):
+        if option not in self._option_to_value:
+            raise ValueError(f"Invalid option for {self._reg['name']}: {option}")
         await self.coordinator.async_write(
-            self._reg["offset"], self._reg["dtype"], int(option)
+            self._reg["offset"], self._reg["dtype"], self._option_to_value[option]
         )
 
 

@@ -30,7 +30,10 @@ from .const import (
     RECONNECT_INTERVAL_S,
     RECONNECT_PROBE_OFFSET,
 )
-from .modbus_client import ModbusClient, decode_value, encode_value, word_count
+from .modbus_client import (
+    ModbusClient, block_range, build_read_blocks, decode_block,
+    decode_value, encode_value, word_count,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -137,6 +140,7 @@ class SharedModbusLink:
         # One call sequence at a time so a poll, a heartbeat and a write
         # never interleave their requests on the shared connection.
         self._lock = asyncio.Lock()
+        self._single_read_blocks = set()
         self.last_response = monotonic()
 
     async def reconnect(self) -> None:
@@ -157,9 +161,12 @@ class SharedModbusLink:
 
     async def _read_words(self, reg: dict) -> list[int]:
         count = word_count(reg["dtype"], reg.get("length", 8))
+        return await self._read_range(reg["offset"], count)
+
+    async def _read_range(self, offset: int, count: int) -> list[int]:
         try:
             words = await self._unit.read_holding_registers(
-                self._address(reg["offset"]), count
+                self._address(offset), count
             )
         except ModbusExceptionError:
             self.last_response = monotonic()
@@ -167,7 +174,7 @@ class SharedModbusLink:
         if len(words) != count:
             raise RuntimeError(
                 f"{len(words)} registers answered for {count} "
-                f"at offset {reg['offset']:#06x}"
+                f"at offset {offset:#06x}"
             )
         self.last_response = monotonic()
         return words
@@ -180,21 +187,31 @@ class SharedModbusLink:
 
     async def read_all(self, regs: list[dict]) -> dict[int, Any]:
         data: dict[int, Any] = {}
+        pending = list(reversed(build_read_blocks(regs)))
         async with self._lock:
             try:
                 async with asyncio.timeout(_POLL_BUDGET_S):
-                    for reg in regs:
+                    while pending:
+                        block = pending.pop()
+                        offset, count = block_range(block)
+                        if len(block) > 1 and (offset, count) in self._single_read_blocks:
+                            pending.extend([reg] for reg in reversed(block))
+                            continue
                         try:
                             async with asyncio.timeout(RECONNECT_INTERVAL_S):
-                                words = await self._read_words(reg)
-                            data[reg["offset"]] = decode_value(
-                                reg["dtype"], words, reg.get("length", 8)
-                            )
+                                words = await self._read_range(offset, count)
+                            data.update(decode_block(block, words))
                         except TimeoutError:
-                            data[reg["offset"]] = None
+                            data.update((reg["offset"], None) for reg in block)
                             break
+                        except ModbusExceptionError:
+                            if len(block) > 1:
+                                self._single_read_blocks.add((offset, count))
+                                pending.extend([reg] for reg in reversed(block))
+                            else:
+                                data[offset] = None
                         except Exception:  # noqa: BLE001
-                            data[reg["offset"]] = None
+                            data.update((reg["offset"], None) for reg in block)
             except TimeoutError:
                 LOGGER.warning(
                     "Modbus poll exceeded its %.1fs budget", _POLL_BUDGET_S

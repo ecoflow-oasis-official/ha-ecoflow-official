@@ -67,9 +67,34 @@ Translation files are in `translations/`. When adding new entities or changing e
 4. Ensure the HACS validation workflow passes
 5. Submit a pull request with a clear description of the change
 
+## Automated validation
+
+`Validate` runs the official HACS Action and Hassfest on pushes, pull requests,
+published releases and a daily schedule. HACS checks are not ignored. `Tests`
+runs the existing Python regression suite on Python 3.12, 3.13 and 3.14, plus the
+frontend checks on Node.js 22.
+
+Run the offline checks from the repository root:
+
+```sh
+python scripts/check_repository.py
+python -m unittest discover -s tests -v
+node tests/frontend-layout.mjs
+```
+
+These commands need no pip or npm packages; the Python tests use framework
+substitutes and the vendored Modbus client. They do not replace real-device tests.
+Before publishing a release, also run `python scripts/check_repository.py --tag
+v1.3.1`, using the version from the manifest. Tag pushes and published releases
+automatically run the same version consistency check.
+
+See the [HACS submission checklist](.github/HACS_SUBMISSION.md) for repository
+settings, release requirements and the default-list PR process. The workflows
+validate changes without automatically publishing or submitting anything.
+
 ## Reporting Issues
 
-Use the [GitHub issue templates](https://github.com/EcoFlow/modbus-API/issues/new/choose) to report bugs or request features. Include:
+Use [GitHub Issues](https://github.com/EcoFlow-oasis-official/ha-EcoFlow-official/issues) to report bugs or request features. Include:
 
 - Your Home Assistant version
 - Integration version (from `manifest.json`)

@@ -21,9 +21,12 @@ from .const import (
     DOMAIN,
     SYSTEM_ENTRY,
     SYSTEM_NAME,
+    DEVICE_GROUP_ID,
+    SYSTEM_NUMBER,
 )
 from .link import probe_device
 from .product_profiles import product_from_serial
+from .system_naming import async_system_number, system_name
 
 LOGGER = logging.getLogger(__name__)
 
@@ -61,14 +64,18 @@ class EcoFlowModbusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         group = group or DEFAULT_SYSTEM_ID
         await self.async_set_unique_id(f"stream-system:{group}")
         self._abort_if_unique_id_configured()
+        number = async_system_number(self.hass, group)
         return self.async_create_entry(
-            title=SYSTEM_NAME,
-            data={SYSTEM_ENTRY: True, CONF_SYSTEM_ID: group},
+            title=system_name(number),
+            # Discovery is requested only after a real master is confirmed.
+            # Persist that fact now, before election/connection state can change.
+            data={SYSTEM_ENTRY: True, CONF_SYSTEM_ID: group, "master_seen": True, SYSTEM_NUMBER: number,
+                  **({DEVICE_GROUP_ID: int(group)} if group.isdigit() else {})},
         )
 
     async def async_step_reconfigure(self, user_input=None):
-        """Temporary system IDs are allocated internally, not written to firmware."""
-        return self.async_abort(reason="temporary_system_id")
+        """System groups are read from firmware rather than configured here."""
+        return self.async_abort(reason="system_group_read_only")
 
     async def _async_check_device(self, data, *, discovery=False):
         """Match stored identity and endpoint across all setup sources."""
