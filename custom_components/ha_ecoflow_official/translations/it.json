@@ -22,7 +22,7 @@
     },
     "abort": {
       "already_configured": "Questo dispositivo e gia configurato",
-      "temporary_system_id": "Modalità temporanea: un ID di sistema viene assegnato internamente quando il dispositivo è confermato come master. Non sono richieste configurazione manuale o supporto Group ID nel firmware."
+      "system_group_read_only": "L’ID del gruppo di sistema viene letto automaticamente dal dispositivo. Il raggruppamento manuale non è supportato."
     }
   },
   "entity": {
@@ -541,6 +541,9 @@
       },
       "reg_2407": {
         "name": "D5. Potenza bypass AC3"
+      },
+      "reg_1004": {
+        "name": "D1. ID gruppo di sistema"
       }
     },
     "number": {
@@ -667,11 +670,11 @@
       "reg_1610": {
         "name": "S3. Punto di controllo",
         "state": {
-          "0": "Nessuno",
-          "1": "Punto batteria",
-          "2": "Punto contatore",
-          "3": "Punto inverter",
-          "4": "Punto della porta di rete"
+          "none": "Nessuno",
+          "battery_point": "Punto batteria",
+          "meter_point": "Punto contatore",
+          "inverter_point": "Punto inverter",
+          "grid_port_point": "Punto della porta di rete"
         }
       }
     },

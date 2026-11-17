@@ -7,6 +7,7 @@ They do not replace a live Home Assistant integration test.
 
 import ast
 import asyncio
+import struct
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
@@ -33,6 +34,9 @@ class ConfigEntries:
         self.updates.append(changes)
         for key, value in changes.items():
             setattr(entry, key, value)
+
+    def async_entries(self, domain):
+        return self.entries
 
 
 class FlowBase:
@@ -77,6 +81,18 @@ def load_methods(filename, namespace):
     return namespace
 
 
+def load_codec():
+    """Load the real pure codec and block planner without transport imports."""
+    tree = ast.parse((COMPONENT / "modbus_client.py").read_text(encoding="utf-8"))
+    tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                 or (isinstance(node, ast.Assign)
+                     and any(isinstance(t, ast.Name) and t.id == "WORD_COUNT"
+                             for t in node.targets))]
+    namespace = {"struct": struct}
+    exec(compile(tree, str(COMPONENT / "modbus_client.py"), "exec"), namespace)
+    return namespace
+
+
 def entry(unique_id="legacy", host="192.0.2.1", serial=None, source="user"):
     data = {"host": host, "port": 502}
     if serial:
@@ -88,6 +104,7 @@ def entry(unique_id="legacy", host="192.0.2.1", serial=None, source="user"):
 class IdentityTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         namespace = load_methods("const.py", {})
+        load_methods("system_naming.py", namespace)
         load_methods("product_profiles.py", namespace)
         namespace.update(
             logging=__import__("logging"), CONF_HOST="host", CONF_PORT="port",
@@ -101,7 +118,7 @@ class IdentityTests(unittest.IsolatedAsyncioTestCase):
 
     def flow(self, entries=(), source="zeroconf"):
         flow = self.ns["EcoFlowModbusFlowHandler"]()
-        flow.hass = SimpleNamespace(config_entries=ConfigEntries(list(entries)))
+        flow.hass = SimpleNamespace(data={}, config_entries=ConfigEntries(list(entries)))
         flow.source = source
         flow.context = {}
         return flow
@@ -248,6 +265,7 @@ class ProductTests(unittest.IsolatedAsyncioTestCase):
         self.ns = load_methods("const.py", {})
         load_methods("product_profiles.py", self.ns)
         load_methods("registers_schema.py", self.ns)
+        self.ns.update(load_codec())
 
     def test_profiles_normalize_sn_and_use_fallback(self):
         for serial, expected in (
@@ -334,6 +352,9 @@ class ProductTests(unittest.IsolatedAsyncioTestCase):
 class ProbeTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         namespace = load_methods("const.py", {})
+        codec = load_codec()
+        namespace.update({name: codec[name] for name in
+                          ("build_read_blocks", "block_range", "decode_block")})
         namespace.update(
             asyncio=asyncio, logging=__import__("logging"), Any=Any, Protocol=Protocol,
             ModbusClient=Mock(), decode_value=lambda *args: " SN1234 ",

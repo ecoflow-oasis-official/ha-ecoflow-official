@@ -3,6 +3,16 @@
 
 REGISTERS = [
     {
+        "offset": 0x1004,
+        "name": "System group ID",
+        "dtype": "UINT32",
+        "unit": "/",
+        "permission": "R",
+        "region": "D1. Device Info",
+        "products": ["STREAM 5000", "STREAM AC 5000"],
+        "length": 0,
+    },
+    {
         "offset": 0x025F,
         "name": "Heartbeat signal",
         "dtype": "UINT16",

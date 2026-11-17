@@ -2,7 +2,7 @@
 
 This module has no Home Assistant imports so it can be tested standalone
 against the simulator. Word order matches the EcoFlow protocol:
-multi-word values store the low word first (0x12345678 -> [0x5678, 0x1234]).
+multi-word values store the high word first (0x12345678 -> [0x1234, 0x5678]).
 """
 
 import logging
@@ -46,6 +46,51 @@ def word_count(dtype, length=8):
     if dtype == "STRING":
         return length or 8
     return WORD_COUNT.get(dtype, 1)
+
+
+def build_read_blocks(regs):
+    """Group adjacent readable points, without gaps or splitting a value.
+
+    FC03 permits at most 125 words. Unsupported addresses and write-only
+    points must never be included just to bridge two readable ranges.
+    """
+    blocks = []
+    start = end = -1
+    for reg in sorted((r for r in regs if r.get("permission") != "W"),
+                      key=lambda r: r["offset"]):
+        offset = reg["offset"]
+        count = word_count(reg["dtype"], reg.get("length", 8))
+        if not 1 <= count <= 125:
+            raise ValueError(f"Invalid FC03 word count: {count}")
+        if offset != end or offset + count - start > 125:
+            blocks.append([])
+            start = offset
+        blocks[-1].append(reg)
+        end = offset + count
+    return blocks
+
+
+def block_range(block):
+    """Return the start and word count of a planned block."""
+    first, last = block[0], block[-1]
+    return first["offset"], (last["offset"] - first["offset"]
+                             + word_count(last["dtype"], last.get("length", 8)))
+
+
+def decode_block(block, words):
+    """Decode each point from its own slice of a validated block response."""
+    start, count = block_range(block)
+    if len(words) != count:
+        raise ValueError("Incomplete Modbus block response")
+    return {
+        reg["offset"]: decode_value(
+            reg["dtype"],
+            words[reg["offset"] - start:reg["offset"] - start
+                  + word_count(reg["dtype"], reg.get("length", 8))],
+            reg.get("length", 8),
+        )
+        for reg in block
+    }
 
 
 def encode_value(dtype, value, length=8):
@@ -118,6 +163,7 @@ class ModbusClient:
         self.address_offset = conf.get(CONF_ADDRESS_OFFSET, DEFAULT_ADDRESS_OFFSET)
         self._lock = threading.Lock()
         self._interrupt_poll = threading.Event()
+        self._single_read_blocks = set()
         self.last_response = monotonic()
         self._client = ModbusTcpClient(
             host=host, port=port, timeout=RECONNECT_INTERVAL_S, retries=0
@@ -184,24 +230,38 @@ class ModbusClient:
         return decode_value(reg["dtype"], result.registers, reg.get("length", 8))
 
     def read_all(self, regs):
-        """Read all register definitions, return {offset: value} dict."""
+        """Read adjacent points together; remember device refusals per link."""
         data = {}
         started = monotonic()
-        for reg in regs:
+        pending = list(reversed(build_read_blocks(regs)))
+        while pending:
             if self._interrupt_poll.is_set():
                 break
+            block = pending.pop()
+            offset, count = block_range(block)
+            if len(block) > 1 and (offset, count) in self._single_read_blocks:
+                pending.extend([reg] for reg in reversed(block))
+                continue
             try:
-                value = self.read_one(reg)
+                with self._lock:
+                    result = self._read_response(offset, count)
             except ConnectionException:
                 break
-            data[reg["offset"]] = value
-            if value is None and (not self._client.connected
-                                  or monotonic() - started >= RECONNECT_INTERVAL_S):
+            if result is not None and result.isError() and len(block) > 1:
+                self._single_read_blocks.add((offset, count))
+                pending.extend([reg] for reg in reversed(block))
+                continue
+            if result is not None and not result.isError():
+                data.update(decode_block(block, result.registers))
+            else:
+                data.update((reg["offset"], None) for reg in block)
+            if result is None and (not self._client.connected
+                                   or monotonic() - started >= RECONNECT_INTERVAL_S):
                 break
         return data
 
     def write_value(self, offset, dtype, value, length=8):
-        """Write a python value to a register, low word first."""
+        """Write a python value to a register, high word first."""
         address = self._pdu_address(offset)
         words = encode_value(dtype, value, length)
         with self._lock:

@@ -14,6 +14,15 @@ from .const import (
 from .sensor import unit_device_class
 
 _BOUNDS_BY_OFFSET = {
+    # User-confirmed control ranges; UINT32 storage bounds are not power limits.
+    0x1600: (0, 100000),  # Battery charge power limit
+    0x1602: (0, 100000),  # Battery discharge power limit
+    0x1604: (0, 100000),  # Meter point input power limit
+    0x1606: (0, 100000),  # Meter point output power limit
+    0x1608: (0, 100000),  # Inverter output power limit
+    0x160A: (0, 100000),  # Inverter input power limit
+    0x160C: (0, 100000),  # Grid port output power limit
+    0x160E: (0, 100000),  # Grid port input power limit
     0x021C: (0, 100),  # LED brightness
     0x0217: (0, 100),  # Backup reserve ratio
     0x023C: (1, 100),  # Feed-in limit percentage
@@ -23,7 +32,7 @@ _BOUNDS_BY_OFFSET = {
     0x000D: (1, 254),  # Device communication address
 }
 
-# Storage limits are the fallback; documented point limits take precedence.
+# Storage limits are the fallback; confirmed point limits take precedence.
 _BOUNDS_BY_TYPE = {
     "INT16": (-32768, 32767),
     "UINT16": (0, 65535),
@@ -84,9 +93,14 @@ class EcoFlowNumber(CoordinatorEntity, NumberEntity):
         return self.coordinator.data.get(self._reg["offset"])
 
     async def async_set_native_value(self, value):
-        if self._reg["dtype"] == "FLOAT":
-            value = float(value)
-        else:
+        value = float(value)
+        minimum, maximum = _bounds(self._reg)
+        # Also rejects NaN and infinities before reaching the Modbus transport.
+        if not minimum <= value <= maximum:
+            raise ValueError(f"Value must be between {minimum} and {maximum}")
+        if self._reg["dtype"] != "FLOAT":
+            if not value.is_integer():
+                raise ValueError("This register requires an integer value")
             value = int(value)
         await self.coordinator.async_write(
             self._reg["offset"], self._reg["dtype"], value, self._reg.get("length", 8)

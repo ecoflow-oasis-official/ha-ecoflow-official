@@ -22,7 +22,7 @@
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits konfiguriert",
-      "temporary_system_id": "Übergangsmodus: Sobald ein Gerät als Hauptgerät bestätigt ist, wird intern eine System-ID vergeben. Eine manuelle Konfiguration oder Group-ID-Unterstützung der Firmware ist nicht erforderlich."
+      "system_group_read_only": "Die Systemgruppen-ID wird automatisch vom Gerät gelesen. Eine manuelle Gruppierung wird nicht unterstützt."
     }
   },
   "entity": {
@@ -541,6 +541,9 @@
       },
       "reg_2407": {
         "name": "D5. Bypass AC3 Leistung"
+      },
+      "reg_1004": {
+        "name": "D1. Systemgruppen-ID"
       }
     },
     "number": {
@@ -667,11 +670,11 @@
       "reg_1610": {
         "name": "S3. Steuerpunkt",
         "state": {
-          "0": "Keiner",
-          "1": "Batteriepunkt",
-          "2": "Zählerpunkt",
-          "3": "Wechselrichterpunkt",
-          "4": "Punkt am Netzanschluss"
+          "none": "Keiner",
+          "battery_point": "Batteriepunkt",
+          "meter_point": "Zählerpunkt",
+          "inverter_point": "Wechselrichterpunkt",
+          "grid_port_point": "Punkt am Netzanschluss"
         }
       }
     },

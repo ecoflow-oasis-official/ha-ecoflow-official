@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from test_device_identity import COMPONENT, load_methods
+from test_device_identity import COMPONENT, load_codec, load_methods
 
 
 class CoordinatorEntity:
@@ -41,7 +41,7 @@ class NumberControlTests(unittest.IsolatedAsyncioTestCase):
         tree.body = [node for node in tree.body if isinstance(
             node, (ast.FunctionDef, ast.ClassDef)
         )]
-        self.codec.update(WORD_COUNT={"INT16": 1, "UINT32": 2})
+        self.codec.update(WORD_COUNT=load_codec()["WORD_COUNT"])
         exec(compile(tree, "modbus_client.py", "exec"), self.codec)
 
     def number(self, offset):
@@ -56,11 +56,37 @@ class NumberControlTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(number._attr_native_step, 1)
             self.assertEqual(number._attr_mode, "box")
 
-    def test_unsigned_discharge_limit_has_numeric_bounds(self):
-        number = self.number(0x1602)
-        self.assertEqual(number._attr_native_min_value, 0)
-        self.assertEqual(number._attr_native_max_value, 4294967295)
-        self.assertEqual(number._attr_mode, "box")
+    def test_all_eight_power_limits_have_confirmed_bounds(self):
+        for offset in range(0x1600, 0x1610, 2):
+            with self.subTest(offset=offset):
+                number = self.number(offset)
+                self.assertEqual(number._attr_native_min_value, 0)
+                self.assertEqual(number._attr_native_max_value, 100000)
+                self.assertEqual(number._attr_native_step, 1)
+                self.assertEqual(number._attr_mode, "box")
+
+    async def test_power_limits_accept_both_boundaries_as_uint32(self):
+        for offset in range(0x1600, 0x1610, 2):
+            for value in (0, 100000):
+                with self.subTest(offset=offset, value=value):
+                    await self.number(offset).async_set_native_value(value)
+                    self.coordinator.async_write.assert_awaited_with(offset, "UINT32", value, 0)
+                    words = self.codec["encode_value"]("UINT32", value)
+                    self.assertEqual(self.codec["decode_value"]("UINT32", words), value)
+
+    async def test_invalid_power_limits_never_reach_modbus(self):
+        for offset in range(0x1600, 0x1610, 2):
+            for value in (-1, 100001, 100000.5, 4294967295, 0.5,
+                          float("nan"), float("inf"), -float("inf")):
+                with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                    await self.number(offset).async_set_native_value(value)
+        self.coordinator.async_write.assert_not_awaited()
+
+    async def test_existing_percentage_and_signed_bounds_are_enforced(self):
+        for offset, value in ((0x0217, 101), (0x1611, -32769), (0x1611, 32768)):
+            with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                await self.number(offset).async_set_native_value(value)
+        self.coordinator.async_write.assert_not_awaited()
 
     def test_percentage_limits_are_preserved(self):
         number = self.number(0x0217)

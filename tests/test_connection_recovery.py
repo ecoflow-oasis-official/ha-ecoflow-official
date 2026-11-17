@@ -40,7 +40,8 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
         cls = type(self.coord)
         custom = cls(self.coord.hass, self.coord.conf, "test", self.coord.entry)
         self.assertEqual(custom._response_timeout, 90)
-        self.assertEqual(len(custom._partitions), 30)
+        self.assertEqual(len(custom._partitions), 20)
+        self.assertEqual(custom.update_interval.total_seconds(), 1.5)
 
     async def test_exact_deadline_is_three_full_scan_intervals(self):
         self.assertEqual(self.coord._response_timeout, 15)
@@ -186,6 +187,7 @@ class LinkRecoveryTests(unittest.IsolatedAsyncioTestCase):
     def shared_link(self):
         link = object.__new__(self.ns["SharedModbusLink"])
         link._lock = asyncio.Lock()
+        link._single_read_blocks = set()
         link._address_offset = 40001
         link.last_response = 0
         link._unit = SimpleNamespace(
@@ -284,7 +286,7 @@ class LinkRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_shared_poll_continues_after_device_exception_without_fake_value(self):
         link = self.shared_link()
-        link._unit.read_holding_registers.side_effect = [DeviceExceptionError(), [7]]
+        link._unit.read_holding_registers.side_effect = [DeviceExceptionError(), DeviceExceptionError(), [7]]
         regs = [{"offset": i, "dtype": "UINT16"} for i in range(2)]
         self.assertEqual(await link.read_all(regs), {0: None, 1: 7})
         self.assertEqual(link.last_response, 42)
@@ -296,7 +298,7 @@ class LinkRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(link.last_response, 42)
         link._unit.read_holding_registers.side_effect = TimeoutError
         regs = [{"offset": i, "dtype": "UINT16"} for i in range(3)]
-        self.assertEqual(await link.read_all(regs), {0: None})
+        self.assertEqual(await link.read_all(regs), {0: None, 1: None, 2: None})
         self.assertEqual(link._unit.read_holding_registers.await_count, 2)
         self.assertEqual(link.last_response, 42)
 
@@ -397,7 +399,8 @@ class OwnClientRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     def test_poll_continues_after_device_exception(self):
         self.transport.read_holding_registers.side_effect = [
-            ExceptionResponse(3, 2), SimpleNamespace(isError=lambda: False, registers=[7])
+            ExceptionResponse(3, 2), ExceptionResponse(3, 2),
+            SimpleNamespace(isError=lambda: False, registers=[7])
         ]
         regs = [{"offset": i, "dtype": "UINT16"} for i in range(2)]
         self.assertEqual(self.client.read_all(regs), {0: None, 1: 7})
